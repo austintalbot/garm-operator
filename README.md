@@ -89,6 +89,10 @@ The CRD documentation can be also seen via [docs.crds.dev](https://doc.crds.dev/
 
 Folder `config/samples` contains few basic examples of `Pools`, `Images` and corresponding `Repositories`, `Organizations` or `Enterprises`.
 
+ScaleSets can keep different minimum idle runner counts during recurring weekly
+time ranges. See [scheduled available runners](docs/scaleset-runner-schedules.md)
+for configuration, timezone handling, and overlap rules.
+
 ## 💻 Development
 
 For local development, please read the [development guide](DEVELOPMENT.md).
