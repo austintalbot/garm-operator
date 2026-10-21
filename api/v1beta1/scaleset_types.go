@@ -68,6 +68,10 @@ type ScaleSetSpec struct {
 	// +kubebuilder:default=Delete
 	// +kubebuilder:validation:Enum=Delete;Retain
 	DeletionPolicy ScaleSetDeletionPolicy `json:"deletionPolicy,omitempty"`
+
+	// RunnerSchedule defines optional weekly schedule overrides for minIdleRunners.
+	// +optional
+	RunnerSchedule *RunnerSchedule `json:"runnerSchedule,omitempty"`
 }
 
 // Validate rejects specs the reconciler could never converge on. These are
@@ -94,6 +98,11 @@ func (s ScaleSetSpec) Validate() error {
 	if g := s.GitHubScopeRef.APIGroup; g != nil && *g != scaleSetScopeAPIGroup {
 		return fmt.Errorf("githubScopeRef.apiGroup must be %s, got %q", scaleSetScopeAPIGroup, *g)
 	}
+	if s.RunnerSchedule != nil {
+		if err := s.RunnerSchedule.Validate(s.MaxRunners); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -104,6 +113,11 @@ type ScaleSetStatus struct {
 	ID string `json:"id,omitempty"`
 	// Enabled mirrors the live remote enabled state, not the desired spec.
 	Enabled bool `json:"enabled,omitempty"`
+
+	// EffectiveMinIdleRunners is the current minIdleRunners applied to the remote
+	// scale set after taking runnerSchedule into account.
+	// +optional
+	EffectiveMinIdleRunners *uint `json:"effectiveMinIdleRunners,omitempty"`
 
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
@@ -128,6 +142,7 @@ func (s *ScaleSet) GetConditions() []metav1.Condition {
 //+kubebuilder:resource:path=scalesets,scope=Namespaced,categories=garm
 //+kubebuilder:printcolumn:name="ID",type=string,JSONPath=`.status.id`
 //+kubebuilder:printcolumn:name="MinIdleRunners",type=string,JSONPath=`.spec.minIdleRunners`
+//+kubebuilder:printcolumn:name="EffectiveMinIdleRunners",type=string,JSONPath=`.status.effectiveMinIdleRunners`,priority=1
 //+kubebuilder:printcolumn:name="MaxRunners",type=string,JSONPath=`.spec.maxRunners`
 //+kubebuilder:printcolumn:name="Provider",type=string,JSONPath=`.spec.providerName`,priority=1
 //+kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"

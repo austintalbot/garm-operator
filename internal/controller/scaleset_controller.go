@@ -58,6 +58,7 @@ type ScaleSetReconciler struct {
 	Recorder       events.EventRecorder
 	ScaleSetClient garmClient.ScaleSetClient
 	InstanceClient garmClient.InstanceClient
+	Now            func() time.Time
 }
 
 //+kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
@@ -135,7 +136,43 @@ func (r *ScaleSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (r
 	if deleting {
 		return r.reconcileDelete(ctx, scaleSetClient, instanceClient, set)
 	}
-	return r.reconcileNormal(ctx, scaleSetClient, instanceClient, set)
+
+	now := time.Now()
+	if r.Now != nil {
+		now = r.Now()
+	}
+
+	minimum, err := scaleSetUtil.EffectiveMinIdleRunners(set.Spec, now)
+	if err != nil {
+		conditions.MarkFalse(set, conditions.ReadyCondition, conditions.InvalidSpecReason, err.Error())
+		return ctrl.Result{}, nil
+	}
+	set.Status.EffectiveMinIdleRunners = &minimum
+
+	effective := set.DeepCopy()
+	effective.Spec.MinIdleRunners = minimum
+	result, err := r.reconcileNormal(ctx, scaleSetClient, instanceClient, effective)
+	set.Status.ID = effective.Status.ID
+	set.Status.Enabled = effective.Status.Enabled
+	set.Status.Conditions = effective.Status.Conditions
+	if err != nil {
+		return result, err
+	}
+
+	if set.Spec.RunnerSchedule != nil {
+		nextTransition, err := scaleSetUtil.NextTransitionTime(set.Spec.RunnerSchedule, now)
+		if err == nil && !nextTransition.IsZero() {
+			delay := nextTransition.Sub(now)
+			if delay < time.Second {
+				delay = time.Second
+			}
+			if result.RequeueAfter == 0 || delay < result.RequeueAfter {
+				result.RequeueAfter = delay
+			}
+		}
+	}
+
+	return result, nil
 }
 
 func (r *ScaleSetReconciler) reconcileNormal(ctx context.Context, scaleSetClient garmClient.ScaleSetClient, instanceClient garmClient.InstanceClient, set *garmoperatorv1beta1.ScaleSet) (ctrl.Result, error) {

@@ -23,6 +23,10 @@ spec:
     - jsonPath: .spec.minIdleRunners
       name: MinIdleRunners
       type: string
+    - jsonPath: .status.effectiveMinIdleRunners
+      name: EffectiveMinIdleRunners
+      priority: 1
+      type: string
     - jsonPath: .spec.maxRunners
       name: MaxRunners
       type: string
@@ -148,6 +152,68 @@ spec:
                 type: integer
               runnerPrefix:
                 type: string
+              runnerSchedule:
+                description: RunnerSchedule defines optional weekly schedule overrides
+                  for minIdleRunners.
+                properties:
+                  ranges:
+                    description: Ranges override the baseline; the highest matching
+                      count wins.
+                    items:
+                      description: |-
+                        RunnerScheduleRange is a start-inclusive, end-exclusive local time range.
+                        For overnight ranges, Days identifies the starting weekday.
+                      properties:
+                        days:
+                          items:
+                            enum:
+                            - Monday
+                            - Tuesday
+                            - Wednesday
+                            - Thursday
+                            - Friday
+                            - Saturday
+                            - Sunday
+                            type: string
+                          maxItems: 7
+                          minItems: 1
+                          type: array
+                          x-kubernetes-list-type: set
+                        end:
+                          maxLength: 5
+                          pattern: ^([01][0-9]|2[0-3]):[0-5][0-9]$
+                          type: string
+                        minIdleRunners:
+                          minimum: 0
+                          type: integer
+                        start:
+                          maxLength: 5
+                          pattern: ^([01][0-9]|2[0-3]):[0-5][0-9]$
+                          type: string
+                      required:
+                      - days
+                      - end
+                      - minIdleRunners
+                      - start
+                      type: object
+                      x-kubernetes-validations:
+                      - message: start and end must differ
+                        rule: self.start != self.end
+                    maxItems: 100
+                    minItems: 1
+                    type: array
+                  timeZone:
+                    default: UTC
+                    description: TimeZone is an IANA timezone. When omitted, UTC is
+                      used.
+                    minLength: 1
+                    type: string
+                    x-kubernetes-validations:
+                    - message: timeZone must not be Local
+                      rule: self != 'Local'
+                required:
+                - ranges
+                type: object
             required:
             - enabled
             - flavor
@@ -222,6 +288,11 @@ spec:
                   - type
                   type: object
                 type: array
+              effectiveMinIdleRunners:
+                description: |-
+                  EffectiveMinIdleRunners is the current minIdleRunners applied to the remote
+                  scale set after taking runnerSchedule into account.
+                type: integer
               enabled:
                 description: Enabled mirrors the live remote enabled state, not the
                   desired spec.
