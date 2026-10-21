@@ -37,6 +37,11 @@ else
     echo "Using $(go version)"
 fi
 
+if [[ -z "${BLACKDUCK_TOKEN:-}" ]] || [[ -z "${BLACKDUCK_URL:-}" ]]; then
+    echo "BLACKDUCK_TOKEN or BLACKDUCK_URL not set, skipping scan"
+    exit 0
+fi
+
 echo "get bearer token"
 bearer_token=$(curl -k -s -X POST \
     -H "Accept: application/vnd.blackducksoftware.user-4+json" \
